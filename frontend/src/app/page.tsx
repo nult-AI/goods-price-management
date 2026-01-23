@@ -9,7 +9,7 @@ const REGIONS = ["Toàn cầu", "Miền Bắc", "Miền Trung", "Miền Nam", "T
 
 export default function Home() {
     const { user } = useAuth();
-    const [categories, setCategories] = useState<string[]>(["All"]);
+    const [categories, setCategories] = useState<any[]>([]);
     const [activeCategory, setActiveCategory] = useState("All");
     const [searchTerm, setSearchTerm] = useState("");
     const [items, setItems] = useState<any[]>([]);
@@ -37,7 +37,7 @@ export default function Home() {
     useEffect(() => {
         fetchCategories().then(cats => {
             if (cats && cats.length > 0) {
-                setCategories(["All", ...cats.map((c: any) => c.name)]);
+                setCategories(cats);
             }
         });
     }, []);
@@ -48,8 +48,13 @@ export default function Home() {
 
         try {
             const currPage = isFirstLoad ? 1 : page;
+
+            // Find the selected category slug
+            const selectedCat = categories.find(c => c.name === activeCategory);
+            const categorySlug = activeCategory === "All" ? undefined : selectedCat?.slug;
+
             const newData = await fetchCommodities({
-                category: activeCategory,
+                category_slug: categorySlug,
                 search: searchTerm,
                 page: currPage,
                 size: 15
@@ -63,7 +68,7 @@ export default function Home() {
         } finally {
             setLoading(false);
         }
-    }, [page, activeCategory, searchTerm, loading]);
+    }, [page, activeCategory, searchTerm, loading, categories]);
 
     useEffect(() => {
         setItems([]); setPage(1); setHasMore(true); fetchItems(true);
@@ -110,10 +115,17 @@ export default function Home() {
 
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-4 border-t border-slate-800/50">
                     <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2 lg:pb-0">
+                        <button
+                            key="All"
+                            onClick={() => setActiveCategory("All")}
+                            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeCategory === "All" ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}
+                        >
+                            Tất cả
+                        </button>
                         {categories.map(cat => (
-                            <button key={cat} onClick={() => setActiveCategory(cat)}
-                                className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeCategory === cat ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}>
-                                {cat}
+                            <button key={cat.id} onClick={() => setActiveCategory(cat.name)}
+                                className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeCategory === cat.name ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}>
+                                {cat.name}
                             </button>
                         ))}
                     </div>
@@ -236,7 +248,10 @@ export default function Home() {
             {selectedCommodity && (
                 <PriceHistoryModal
                     commodityName={`${selectedCommodity.name}`}
-                    data={CHART_MOCK_DATA}
+                    data={selectedCommodity.prices?.map((p: any) => ({
+                        time: new Date(p.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                        price: p.price
+                    })).reverse() || []}
                     onClose={() => setSelectedCommodity(null)}
                 />
             )}

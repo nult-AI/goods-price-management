@@ -80,6 +80,7 @@ class PricePublic(BaseModel):
 
 class CommodityWithLatest(Commodity):
     latest_price: Optional[PricePublic] = None
+    prices: List[PricePublic] = []
 
 # --- Responses ---
 class PaginatedResponse(BaseModel):

@@ -18,6 +18,7 @@ from app.schemas.commodity import (
     CommodityCreate,
     CommodityWithLatest,
     PricePublic,
+    PriceCreate,
     Token
 )
 from app.core.security import verify_password, create_access_token, get_password_hash
@@ -84,23 +85,27 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(check_role(UserRole.ADMIN))
 ):
-    # Default password is 123456 as requested
-    hashed_password = get_password_hash("123456")
+    # Default password is 123456 as requested, but hashed
+    hashed_password = get_password_hash(data.password or "123456")
     new_user = User(
         id=uuid.uuid4(),
         username=data.username,
-        full_name=data.username.split('@')[0], # Default name from email
+        full_name=data.full_name or data.username.split('@')[0],
         hashed_password=hashed_password,
-        role=UserRole.DATA_ENTRY,
+        role=data.role or UserRole.DATA_ENTRY,
         must_change_password=True
     )
     db.add(new_user)
     try:
         await db.commit()
-        await db.refresh(new_user)
-    except:
+        # Use selectinload to avoid lazy loading issues with the response schema
+        from sqlalchemy.orm import selectinload
+        stmt = select(User).options(selectinload(User.permitted_categories)).where(User.id == new_user.id)
+        result = await db.execute(stmt)
+        new_user = result.scalar_one()
+    except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail="User đã tồn tại")
+        raise HTTPException(status_code=400, detail=f"Tài khoản này đã tồn tại hoặc có lỗi: {str(e)}")
     return new_user
 
 @app.get("/api/admin/users", response_model=List[UserSchema])
@@ -118,15 +123,15 @@ async def create_category(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(check_role(UserRole.ADMIN))
 ):
+    slug = data.slug
+    if not slug:
+        slug = data.name.lower().replace(" ", "-")
+        
     new_cat = Category(
         id=uuid.uuid4(),
         name=data.name,
-        slug=data.slug or data.get_slug_from_name() # Assuming we have or handle it
+        slug=slug
     )
-    # Simpler slug logic if not in model
-    if not new_cat.slug:
-        new_cat.slug = data.name.lower().replace(" ", "-")
-
     db.add(new_cat)
     await db.commit()
     await db.refresh(new_cat)
@@ -139,17 +144,30 @@ async def update_user_permissions(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(check_role(UserRole.ADMIN))
 ):
-    result = await db.execute(select(User).where(User.id == user_id))
+    from sqlalchemy.orm import selectinload
+    
+    # Eagerly load the user with their current permissions
+    result = await db.execute(
+        select(User)
+        .where(User.id == user_id)
+        .options(selectinload(User.permitted_categories))
+    )
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Update permissions
+    # Fetch the new categories
     cat_result = await db.execute(select(Category).where(Category.id.in_(category_ids)))
     categories = cat_result.scalars().all()
+    
+    # Update the relationship
     user.permitted_categories = list(categories)
     await db.commit()
-    return {"message": "Dự án đã được phân quyền thành công"}
+    
+    # Refresh to get updated data
+    await db.refresh(user, attribute_names=['permitted_categories'])
+    
+    return {"message": "Đã phân quyền thành công"}
 
 @app.post("/api/admin/commodities", response_model=CommoditySchema)
 async def create_commodity(
@@ -159,13 +177,22 @@ async def create_commodity(
 ):
     new_item = Commodity(
         id=uuid.uuid4(),
-        **data.model_dump(),
+        name=data.name,
+        slug=data.slug,
+        unit=data.unit,
+        description=data.description,
+        category_id=data.category_id,
+        is_active=True,
         created_at=datetime.utcnow()
     )
     db.add(new_item)
     await db.commit()
-    await db.refresh(new_item)
-    return new_item
+    
+    # Reload with category for the response schema
+    from sqlalchemy.orm import selectinload
+    stmt = select(Commodity).options(selectinload(Commodity.category)).where(Commodity.id == new_item.id)
+    result = await db.execute(stmt)
+    return result.scalar_one()
 
 @app.patch("/api/admin/commodities/bulk-category")
 async def bulk_update_commodities_category(
@@ -210,7 +237,10 @@ async def list_commodities(
     db: AsyncSession = Depends(get_db)
 ):
     from sqlalchemy.orm import selectinload
-    query = select(Commodity).options(selectinload(Commodity.category))
+    query = select(Commodity).options(
+        selectinload(Commodity.category),
+        selectinload(Commodity.prices).selectinload(Price.region)
+    )
     if category_slug:
         query = query.join(Category).where(Category.slug == category_slug)
     if search:
@@ -219,35 +249,95 @@ async def list_commodities(
     result = await db.execute(query)
     commodities = result.scalars().all()
     
-    # In a real app, we'd use a more efficient join or subquery for latest price
-    # For now, we'll return them as is
     return commodities
+
+@app.get("/api/data-entry/my-commodities", response_model=List[CommodityWithLatest])
+async def get_my_commodities(
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_active_user)
+):
+    from sqlalchemy.orm import selectinload
+    
+    # Get user's permitted category IDs
+    permitted_cat_ids = [cat.id for cat in user.permitted_categories]
+    
+    # If user has no permissions, return empty list
+    if not permitted_cat_ids:
+        return []
+    
+    # Query commodities in permitted categories
+    query = select(Commodity).options(
+        selectinload(Commodity.category),
+        selectinload(Commodity.prices).selectinload(Price.region)
+    ).where(Commodity.category_id.in_(permitted_cat_ids))
+    
+    if search:
+        query = query.where(Commodity.name.ilike(f"%{search}%"))
+    
+    result = await db.execute(query)
+    return result.scalars().all()
 
 # --- DATA ENTRY: PRICE UPDATES ---
 
 @app.post("/api/data-entry/prices")
 async def update_price(
-    commodity_id: uuid.UUID,
-    price: float,
-    region_code: str = "VN",
+    data: PriceCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(check_role(UserRole.DATA_ENTRY))
+    user: User = Depends(get_current_active_user)
 ):
-    # Check permissions (TODO: check user.permitted_categories)
+    # Check if commodity exists
+    commodity_result = await db.execute(select(Commodity).where(Commodity.id == data.commodity_id))
+    commodity = commodity_result.scalar_one_or_none()
     
-    result = await db.execute(select(Region).where(Region.code == region_code))
-    region = result.scalar_one_or_none()
+    if not commodity:
+        raise HTTPException(status_code=404, detail="Commodity not found")
     
-    new_price = Price(
-        id=uuid.uuid4(),
-        commodity_id=commodity_id,
-        region_id=region.id if region else None,
-        price=price,
-        timestamp=datetime.utcnow()
+    # Check permissions - user must have access to this commodity's category
+    if user.role == UserRole.DATA_ENTRY:
+        permitted_cat_ids = [cat.id for cat in user.permitted_categories]
+        if commodity.category_id not in permitted_cat_ids:
+            raise HTTPException(status_code=403, detail="You don't have permission to update this commodity")
+    
+    # Get or create default region
+    region_result = await db.execute(select(Region).where(Region.code == "VN"))
+    region = region_result.scalar_one_or_none()
+
+    # Get today's start and end for UTC
+    now = datetime.utcnow()
+    today_start = datetime(now.year, now.month, now.day)
+    
+    # Check if a price record already exists for this commodity and region today
+    from sqlalchemy import and_
+    existing_price_result = await db.execute(
+        select(Price).where(
+            and_(
+                Price.commodity_id == data.commodity_id,
+                Price.region_id == (region.id if region else None),
+                Price.timestamp >= today_start
+            )
+        )
     )
-    db.add(new_price)
-    await db.commit()
-    return {"message": "Cập nhật giá thành công"}
+    existing_price = existing_price_result.scalar_one_or_none()
+    
+    if existing_price:
+        # Update existing record for today
+        existing_price.price = data.price
+        existing_price.timestamp = now
+        await db.commit()
+        return {"message": "Đã cập nhật giá hôm nay thành công"}
+    else:
+        # Create new record for today
+        new_price = Price(
+            id=uuid.uuid4(),
+            commodity_id=data.commodity_id,
+            region_id=region.id if region else None,
+            price=data.price,
+            timestamp=now
+        )
+        db.add(new_price)
+        await db.commit()
+        return {"message": "Cập nhật giá thành công"}
 
 # Health check
 @app.get("/health")

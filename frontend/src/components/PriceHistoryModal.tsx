@@ -70,9 +70,10 @@ export default function PriceHistoryModal({ commodityName, data, onClose }: Pric
                                     fontSize={10}
                                     tickLine={false}
                                     axisLine={false}
-                                    tickFormatter={(value) => `$${value}`}
+                                    tickFormatter={(value) => new Intl.NumberFormat('vi-VN').format(value)}
                                 />
                                 <Tooltip
+                                    formatter={(value: any) => [new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value), 'Giá']}
                                     contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
                                     itemStyle={{ color: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }}
                                     labelStyle={{ color: '#64748b', fontSize: '10px', marginBottom: '4px' }}
@@ -90,9 +91,21 @@ export default function PriceHistoryModal({ commodityName, data, onClose }: Pric
                     </div>
 
                     <div className="grid grid-cols-3 gap-4">
-                        <StatsBox label="Highest" value="$2,050.50" color="text-emerald-500" />
-                        <StatsBox label="Lowest" value="$2,010.20" color="text-rose-500" />
-                        <StatsBox label="Average" value="$2,030.35" color="text-blue-400" />
+                        <StatsBox
+                            label="Cao nhất"
+                            value={data.length ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.max(...data.map(d => d.price))) : "---"}
+                            color="text-emerald-500"
+                        />
+                        <StatsBox
+                            label="Thấp nhất"
+                            value={data.length ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Math.min(...data.map(d => d.price))) : "---"}
+                            color="text-rose-500"
+                        />
+                        <StatsBox
+                            label="Trung bình"
+                            value={data.length ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(data.reduce((a, b) => a + b.price, 0) / data.length) : "---"}
+                            color="text-blue-400"
+                        />
                     </div>
                 </div>
             </div>

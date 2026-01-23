@@ -69,6 +69,10 @@ class Commodity(Base):
     category = relationship("Category", back_populates="commodities")
     prices = relationship("Price", back_populates="commodity", order_by="desc(Price.timestamp)")
 
+    @property
+    def latest_price(self):
+        return self.prices[0] if self.prices else None
+
 class Price(Base):
     __tablename__ = "prices"
     

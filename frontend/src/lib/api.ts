@@ -12,7 +12,7 @@ const getHeaders = (token?: string) => {
 
 export async function fetchCategories() {
     const res = await fetch(`${API_URL}/api/public/categories`, {
-        next: { revalidate: 60 }
+        cache: 'no-store'
     });
     if (!res.ok) return [];
     return res.json();
@@ -20,18 +20,20 @@ export async function fetchCategories() {
 
 export async function fetchCommodities(params: {
     category?: string;
+    category_slug?: string;
     search?: string;
     page?: number;
     size?: number
 }) {
     const query = new URLSearchParams();
-    if (params.category && params.category !== 'All') query.append('category_slug', params.category);
+    if (params.category_slug) query.append('category_slug', params.category_slug);
+    else if (params.category && params.category !== 'All') query.append('category_slug', params.category);
     if (params.search) query.append('search', params.search);
     if (params.page) query.append('page', params.page.toString());
     if (params.size) query.append('size', params.size.toString());
 
     const res = await fetch(`${API_URL}/api/public/commodities?${query.toString()}`, {
-        next: { revalidate: 30 },
+        cache: 'no-store',
     });
 
     if (!res.ok) return [];
@@ -72,22 +74,25 @@ export const adminApi = {
         const res = await fetch(`${API_URL}/api/admin/users`, {
             headers: getHeaders(token),
         });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Failed to list users');
         return res.json();
     },
-    createUser: async (token: string, username: string) => {
+    createUser: async (token: string, payload: any) => {
         const res = await fetch(`${API_URL}/api/admin/users`, {
             method: 'POST',
             headers: getHeaders(token),
-            body: JSON.stringify({ username, role: 'data_entry', password: 'placeholder' }),
+            body: JSON.stringify(payload),
         });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Failed to create user');
         return res.json();
     },
-    createCategory: async (token: string, name: string) => {
+    createCategory: async (token: string, payload: any) => {
         const res = await fetch(`${API_URL}/api/admin/categories`, {
             method: 'POST',
             headers: getHeaders(token),
-            body: JSON.stringify({ name, slug: name.toLowerCase().replace(/\s+/g, '-') }),
+            body: JSON.stringify(payload),
         });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Failed to create category');
         return res.json();
     },
     createCommodity: async (token: string, payload: any) => {
@@ -105,6 +110,7 @@ export const adminApi = {
             headers: getHeaders(token),
             body: JSON.stringify(categoryIds),
         });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Failed to update user permissions');
         return res.json();
     },
     updateCommodityCategory: async (token: string, commodityId: string, categoryId: string | null) => {
@@ -131,12 +137,18 @@ export const adminApi = {
 // Data Entry Actions
 export const dataEntryApi = {
     updatePrice: async (token: string, payload: { commodity_id: string, price: number }) => {
-        const query = new URLSearchParams({
-            commodity_id: payload.commodity_id,
-            price: payload.price.toString()
-        });
-        const res = await fetch(`${API_URL}/api/data-entry/prices?${query}`, {
+        const res = await fetch(`${API_URL}/api/data-entry/prices`, {
             method: 'POST',
+            headers: getHeaders(token),
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error((await res.json()).detail || 'Failed to update price');
+        return res.json();
+    },
+    getMyCommodities: async (token: string, search?: string) => {
+        const query = new URLSearchParams();
+        if (search) query.append('search', search);
+        const res = await fetch(`${API_URL}/api/data-entry/my-commodities?${query}`, {
             headers: getHeaders(token),
         });
         return res.json();
