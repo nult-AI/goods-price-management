@@ -1,0 +1,110 @@
+version: "3.9"
+
+# ==============================================================================
+# Goods Price Management Infrastructure
+# This setup provides a production-ready environment for PostgreSQL and Redis.
+# ==============================================================================
+
+services:
+  # --- API Backend (FastAPI) ---
+  api:
+    build: ./backend
+    container_name: goods_api
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # --- Frontend (Next.js) ---
+  frontend:
+    build: ./frontend
+    container_name: goods_frontend
+    restart: always
+    env_file: .env
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - app-network
+
+  # --- PostgreSQL Service ---
+  # Persistent relational database for core application data
+  db:
+    image: postgres:15-alpine
+    container_name: goods_postgres
+    restart: always
+    # Environment variables are loaded from the .env file
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_password}
+      POSTGRES_DB: ${POSTGRES_DB:-goods_db}
+    # Port is exposed for local development access (e.g., via DBeaver or psql)
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    # Named volume ensures data persistence across container restarts/removals
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    # Healthcheck ensures dependent services (like FastAPI) only start when DB is ready
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-goods_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Redis Service ---
+  # Key-value store for caching, task queues, or session management
+  redis:
+    image: redis:7-alpine
+    container_name: goods_redis
+    restart: always
+    # "appendonly yes" enables AOF (Append Only File) for better data persistence
+    command: redis-server --appendonly yes
+    # Port is exposed for local development monitoring/debugging
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    # Named volume for persistent cache/backup data
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    # Healthcheck to verify Redis is responding to PING
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ==============================================================================
+# Networking
+# Single bridge network for secure inter-service communication
+# ==============================================================================
+networks:
+  app-network:
+    name: goods_app_network
+    driver: bridge
+
+# ==============================================================================
+# Volumes
+# Named volumes for reliable data persistence
+# ==============================================================================
+volumes:
+  postgres_data:
+    name: goods_postgres_data
+  redis_data:
+    name: goods_redis_data
