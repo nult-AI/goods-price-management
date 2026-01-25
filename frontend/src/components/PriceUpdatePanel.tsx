@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { dataEntryApi, fetchCommodities } from "@/lib/api";
+import { useRealtimePrices } from "@/hooks/useRealtimePrices";
 
 interface PriceUpdatePanelProps {
     user: any;
@@ -14,6 +15,25 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editPrice, setEditPrice] = useState<string>("");
     const [updating, setUpdating] = useState<string | null>(null);
+
+    // Real-time synchronization
+    const { isConnected } = useRealtimePrices((update) => {
+        console.log("Real-time update received in Admin Panel:", update);
+        setCommodities(prev => prev.map(c => {
+            if (c.id === update.commodity_id) {
+                console.log(`Updating commodity ${c.name} in UI`);
+                return {
+                    ...c,
+                    latest_price: {
+                        ...c.latest_price,
+                        price: update.price,
+                        timestamp: update.timestamp
+                    }
+                };
+            }
+            return c;
+        }));
+    });
 
     useEffect(() => {
         loadCommodities();
@@ -84,9 +104,17 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="space-y-1">
-                    <h3 className="text-3xl font-black italic tracking-tighter uppercase text-white">
-                        Trạm Cập Nhật Giá
-                    </h3>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-3xl font-black italic tracking-tighter uppercase text-white">
+                            Trạm Cập Nhật Giá
+                        </h3>
+                        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border transition-all ${isConnected ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-slate-500/10 border-slate-500/20'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+                            <span className={`text-[8px] font-black uppercase tracking-tighter ${isConnected ? 'text-emerald-500' : 'text-slate-500'}`}>
+                                {isConnected ? 'Live' : 'Syncing...'}
+                            </span>
+                        </div>
+                    </div>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
                         {user.role === 'admin'
                             ? `Quản lý toàn bộ ${filtered.length} mặt hàng`

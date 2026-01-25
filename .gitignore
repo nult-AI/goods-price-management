@@ -1,2 +1,7 @@
 /frontend/node_modules
 /frontend/.next
+/backend/check_db_prices.py
+/backend/check_db_prices_async.py
+/backend/check_redis_keys.py
+/backend/test_redis_pubsub.py
+/backend/test_ws_client.py

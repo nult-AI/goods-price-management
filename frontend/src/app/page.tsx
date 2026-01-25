@@ -4,6 +4,7 @@ import PriceHistoryModal from "@/components/PriceHistoryModal";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchCategories, fetchCommodities } from "@/lib/api";
+import { useRealtimePrices } from "@/hooks/useRealtimePrices";
 
 const REGIONS = ["Toàn cầu", "Miền Bắc", "Miền Trung", "Miền Nam", "Tây Nguyên"];
 
@@ -32,6 +33,33 @@ export default function Home() {
 
     const [selectedCommodity, setSelectedCommodity] = useState<any>(null);
     const loader = useRef(null);
+
+    // Real-time synchronization
+    const { isConnected } = useRealtimePrices((update) => {
+        console.log("Real-time update received in Home:", update);
+        setItems(prevItems => prevItems.map(item => {
+            if (item.id === update.commodity_id) {
+                console.log(`Updating item ${item.name} to price ${update.price}`);
+                const newPriceObj = { price: update.price, timestamp: update.timestamp };
+
+                // Update selected commodity if it's the one being updated
+                if (selectedCommodity?.id === item.id) {
+                    setSelectedCommodity((prev: any) => ({
+                        ...prev,
+                        latest_price: newPriceObj,
+                        prices: [newPriceObj, ...(prev.prices || [])]
+                    }));
+                }
+
+                return {
+                    ...item,
+                    latest_price: newPriceObj,
+                    prices: [newPriceObj, ...(item.prices || [])]
+                };
+            }
+            return item;
+        }));
+    });
 
     // Fetch initial categories
     useEffect(() => {
@@ -96,7 +124,15 @@ export default function Home() {
             <header className="flex flex-col gap-6 bg-slate-900/40 p-6 rounded-3xl border border-slate-800">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
-                        <h1 className="text-3xl font-black italic tracking-tighter uppercase text-white">Bảng Giá Thị Trường</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-3xl font-black italic tracking-tighter uppercase text-white">Bảng Giá Thị Trường</h1>
+                            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border transition-all ${isConnected ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-slate-500/10 border-slate-500/20'}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+                                <span className={`text-[8px] font-black uppercase tracking-tighter ${isConnected ? 'text-emerald-500' : 'text-slate-500'}`}>
+                                    {isConnected ? 'Live' : 'Syncing...'}
+                                </span>
+                            </div>
+                        </div>
                         <p className="text-slate-500 font-medium text-xs">Cơ sở dữ liệu giá hàng hóa từ Việt Nam</p>
                     </div>
 

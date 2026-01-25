@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status
+print("Loading main.py...")
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -23,6 +24,10 @@ from app.schemas.commodity import (
 )
 from app.core.security import verify_password, create_access_token, get_password_hash
 from app.api.deps import get_current_active_user, check_role
+from fastapi import WebSocket, WebSocketDisconnect
+import json
+import asyncio
+from app.core.redis import redis_client
 from contextlib import asynccontextmanager
 from app.db.session import engine
 from app.models.base import Base
@@ -33,7 +38,64 @@ async def lifespan(app: FastAPI):
     # Create tables and seed data
     print("Initializing database...")
     await init_db()
+    
+    # Start Redis listener
+    task = asyncio.create_task(redis_listener())
+    
     yield
+    
+    # Stop Redis listener
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"New WebSocket connection. Total: {len(self.active_connections)}")
+        # Send a welcome message to verify connection
+        await websocket.send_text(json.dumps({
+            "type": "system",
+            "message": "Connected to real-time price stream",
+            "server_time": datetime.utcnow().isoformat()
+        }))
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+        print(f"WebSocket disconnected. Total: {len(self.active_connections)}")
+
+    async def broadcast(self, message: str):
+        print(f"Broadcasting to {len(self.active_connections)} connections: {message}")
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message)
+            except Exception as e:
+                print(f"Failed to send to a websocket: {e}")
+
+manager = ConnectionManager()
+
+async def redis_listener():
+    print("Starting Redis listener...")
+    pubsub = redis_client.pubsub()
+    await pubsub.subscribe("price_updates")
+    print("Subscribed to 'price_updates' channel")
+    try:
+        async for message in pubsub.listen():
+            print(f"Redis message received: {message}")
+            if message["type"] == "message":
+                print(f"Broadcasting data: {message['data']}")
+                await manager.broadcast(message["data"])
+    except Exception as e:
+        print(f"Redis listener error: {e}")
+    finally:
+        print("Redis listener shutting down...")
+        await pubsub.unsubscribe("price_updates")
 
 app = FastAPI(title="Commodity Price Tracker API", lifespan=lifespan)
 
@@ -325,6 +387,22 @@ async def update_price(
         existing_price.price = data.price
         existing_price.timestamp = now
         await db.commit()
+        
+        # Cache in Redis and Publish
+        price_data = {
+            "commodity_id": str(data.commodity_id),
+            "price": float(data.price),
+            "timestamp": now.isoformat()
+        }
+        payload = json.dumps(price_data)
+        
+        print(f"Syncing to Redis: {payload}")
+        try:
+            await redis_client.set(f"price:latest:{data.commodity_id}", payload)
+            await redis_client.publish("price_updates", payload)
+        except Exception as re:
+            print(f"Redis error: {re}")
+        
         return {"message": "Đã cập nhật giá hôm nay thành công"}
     else:
         # Create new record for today
@@ -337,9 +415,35 @@ async def update_price(
         )
         db.add(new_price)
         await db.commit()
+
+        # Cache in Redis and Publish
+        price_data = {
+            "commodity_id": str(data.commodity_id),
+            "price": float(data.price),
+            "timestamp": now.isoformat()
+        }
+        payload = json.dumps(price_data)
+        
+        print(f"Syncing to Redis (new): {payload}")
+        try:
+            await redis_client.set(f"price:latest:{data.commodity_id}", payload)
+            await redis_client.publish("price_updates", payload)
+        except Exception as re:
+            print(f"Redis error: {re}")
+
         return {"message": "Cập nhật giá thành công"}
 
 # Health check
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.websocket("/ws/prices")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)

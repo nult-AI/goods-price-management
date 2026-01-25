@@ -84,6 +84,18 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" className="dark">
+            <head>
+                <link rel="manifest" href="/manifest.json" />
+                <meta name="theme-color" content="#2563eb" />
+                <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+                <meta name="apple-mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+                <meta name="apple-mobile-web-app-title" content="PriceMgmt" />
+                <meta name="description" content="Quản lý và cập nhật giá hàng hóa chuyên nghiệp" />
+                <meta name="format-detection" content="telephone=no" />
+                <meta name="mobile-web-app-capable" content="yes" />
+                <link rel="shortcut icon" href="/favicon.ico" />
+            </head>
             <body className={`${inter.className} bg-slate-950 text-slate-50 antialiased min-h-screen flex flex-col`}>
                 <AuthProvider>
                     <Header />
