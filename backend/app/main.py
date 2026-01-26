@@ -8,7 +8,7 @@ from datetime import datetime
 import uuid
 
 from app.db.session import get_db
-from app.models.base import User, Category, Commodity, Price, UserRole, Region
+from app.models.base import User, Category, Commodity, Price, UserRole, Region, AutoCrawlerConfig
 from app.schemas.commodity import (
     User as UserSchema, 
     UserCreate, 
@@ -18,11 +18,13 @@ from app.schemas.commodity import (
     Commodity as CommoditySchema,
     CommodityCreate,
     CommodityWithLatest,
-    PricePublic,
     PriceCreate,
-    Token
+    Token,
+    CrawlerConfig as CrawlerConfigSchema,
+    CrawlerConfigUpdate
 )
 from app.core.security import verify_password, create_access_token, get_password_hash
+from app.tasks.worker import start_price_crawl_task
 from app.api.deps import get_current_active_user, check_role
 from fastapi import WebSocket, WebSocketDisconnect
 import json
@@ -101,10 +103,7 @@ app = FastAPI(title="Commodity Price Tracker API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-    ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -254,7 +253,30 @@ async def create_commodity(
     from sqlalchemy.orm import selectinload
     stmt = select(Commodity).options(selectinload(Commodity.category)).where(Commodity.id == new_item.id)
     result = await db.execute(stmt)
-    return result.scalar_one()
+    commodity = result.scalar_one()
+
+    # Notify via Redis
+    try:
+        from app.core.redis import redis_client
+        pub_payload = {
+            "commodity_id": str(commodity.id),
+            "name": commodity.name,
+            "slug": commodity.slug,
+            "unit": commodity.unit,
+            "price": 0, # Initial price
+            "timestamp": commodity.created_at.isoformat(),
+            "category": {
+                "id": str(commodity.category.id),
+                "name": commodity.category.name,
+                "slug": commodity.category.slug
+            } if commodity.category else None,
+            "region": None # Default manual creation
+        }
+        await redis_client.publish("price_updates", json.dumps(pub_payload))
+    except Exception as e:
+        print(f"Failed to publish new commodity: {e}")
+
+    return commodity
 
 @app.patch("/api/admin/commodities/bulk-category")
 async def bulk_update_commodities_category(
@@ -285,6 +307,46 @@ async def update_commodity_category(
     await db.commit()
     return {"message": "Đã cập nhật nhóm hàng hóa thành công"}
 
+@app.get("/api/admin/crawler-config", response_model=CrawlerConfigSchema)
+async def get_crawler_config(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(check_role(UserRole.ADMIN))
+):
+    config = await db.scalar(select(AutoCrawlerConfig).limit(1))
+    if not config:
+        raise HTTPException(status_code=404, detail="Config not found")
+    return config
+
+@app.patch("/api/admin/crawler-config", response_model=CrawlerConfigSchema)
+async def update_crawler_config(
+    data: CrawlerConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(check_role(UserRole.ADMIN))
+):
+    config = await db.scalar(select(AutoCrawlerConfig).limit(1))
+    if not config:
+        raise HTTPException(status_code=404, detail="Config not found")
+    
+    if data.search_keywords is not None:
+        config.search_keywords = data.search_keywords
+    if data.seed_urls is not None:
+        config.seed_urls = data.seed_urls
+    if data.scraping_interval_minutes is not None:
+        config.scraping_interval_minutes = data.scraping_interval_minutes
+    if data.is_active is not None:
+        config.is_active = data.is_active
+        
+    await db.commit()
+    await db.refresh(config)
+    return config
+
+@app.post("/api/admin/crawler/run")
+async def trigger_crawler(
+    admin: User = Depends(check_role(UserRole.ADMIN))
+):
+    start_price_crawl_task.delay()
+    return {"message": "Crawler đã được kích hoạt chạy ngầm"}
+
 # --- PUBLIC: COMMODITIES & CATEGORIES ---
 
 @app.get("/api/public/categories", response_model=List[CategorySchema])
@@ -296,20 +358,28 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
 async def list_commodities(
     category_slug: Optional[str] = None,
     search: Optional[str] = None,
+    before: Optional[datetime] = None,
+    size: int = 15,
     db: AsyncSession = Depends(get_db)
 ):
     from sqlalchemy.orm import selectinload
     query = select(Commodity).options(
         selectinload(Commodity.category),
         selectinload(Commodity.prices).selectinload(Price.region)
-    )
+    ).order_by(Commodity.created_at.desc()) # Order by latest first
+    
     if category_slug:
         query = query.join(Category).where(Category.slug == category_slug)
     if search:
         query = query.where(Commodity.name.ilike(f"%{search}%"))
     
+    if before:
+        query = query.where(Commodity.created_at < before)
+    
+    query = query.limit(size)
+    
     result = await db.execute(query)
-    commodities = result.scalars().all()
+    commodities = result.scalars().unique().all()
     
     return commodities
 

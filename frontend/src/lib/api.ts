@@ -22,14 +22,14 @@ export async function fetchCommodities(params: {
     category?: string;
     category_slug?: string;
     search?: string;
-    page?: number;
+    before?: string;
     size?: number
 }) {
     const query = new URLSearchParams();
     if (params.category_slug) query.append('category_slug', params.category_slug);
     else if (params.category && params.category !== 'All') query.append('category_slug', params.category);
     if (params.search) query.append('search', params.search);
-    if (params.page) query.append('page', params.page.toString());
+    if (params.before) query.append('before', params.before);
     if (params.size) query.append('size', params.size.toString());
 
     const res = await fetch(`${API_URL}/api/public/commodities?${query.toString()}`, {
@@ -130,6 +130,30 @@ export const adminApi = {
             headers: getHeaders(token),
             body: JSON.stringify(commodityIds),
         });
+        return res.json();
+    },
+    getCrawlerConfig: async (token: string) => {
+        const res = await fetch(`${API_URL}/api/admin/crawler-config`, {
+            headers: getHeaders(token),
+        });
+        if (!res.ok) throw new Error('Failed to fetch crawler config');
+        return res.json();
+    },
+    updateCrawlerConfig: async (token: string, payload: any) => {
+        const res = await fetch(`${API_URL}/api/admin/crawler-config`, {
+            method: 'PATCH',
+            headers: getHeaders(token),
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Failed to update crawler config');
+        return res.json();
+    },
+    runCrawlerManual: async (token: string) => {
+        const res = await fetch(`${API_URL}/api/admin/crawler/run`, {
+            method: 'POST',
+            headers: getHeaders(token),
+        });
+        if (!res.ok) throw new Error('Failed to trigger crawler');
         return res.json();
     }
 };

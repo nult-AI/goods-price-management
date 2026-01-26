@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Numeric, Table, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase
 import enum
 
@@ -73,6 +73,33 @@ class Commodity(Base):
     def latest_price(self):
         return self.prices[0] if self.prices else None
 
+class SearchCache(Base):
+    __tablename__ = "search_cache"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    keyword = Column(String(255), unique=True, index=True)
+    urls = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AutoCrawlerConfig(Base):
+    __tablename__ = "auto_crawler_configs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    search_keywords = Column(JSONB, default=[]) # e.g. ["giá lúa hôm nay", "giá cà phê"]
+    seed_urls = Column(JSONB, default=[]) # List of websites to crawl first
+    scraping_interval_minutes = Column(Numeric, default=60)
+    last_run_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+class StagingPrice(Base):
+    __tablename__ = "staging_prices"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    price = Column(Numeric(18, 4), nullable=False)
+    unit = Column(String(50), nullable=False)
+    category_name = Column(String(100), nullable=True)
+    source_url = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    processed = Column(Boolean, default=False)
+
 class Price(Base):
     __tablename__ = "prices"
     
@@ -80,6 +107,7 @@ class Price(Base):
     commodity_id = Column(UUID(as_uuid=True), ForeignKey('commodities.id', ondelete="CASCADE"), nullable=False)
     region_id = Column(UUID(as_uuid=True), ForeignKey('regions.id', ondelete="SET NULL"), nullable=True)
     price = Column(Numeric(18, 4), nullable=False)
+    source_url = Column(String(500), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     
     commodity = relationship("Commodity", back_populates="prices")

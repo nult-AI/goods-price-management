@@ -5,3 +5,4 @@
 /backend/check_redis_keys.py
 /backend/test_redis_pubsub.py
 /backend/test_ws_client.py
+/backend/.env

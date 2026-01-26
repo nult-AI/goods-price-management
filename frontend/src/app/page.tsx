@@ -33,32 +33,67 @@ export default function Home() {
 
     const [selectedCommodity, setSelectedCommodity] = useState<any>(null);
     const loader = useRef(null);
+    const loadingRef = useRef(false);
+    const oldestTimestampRef = useRef<string | undefined>(undefined);
 
     // Real-time synchronization
     const { isConnected } = useRealtimePrices((update) => {
-        console.log("Real-time update received in Home:", update);
-        setItems(prevItems => prevItems.map(item => {
-            if (item.id === update.commodity_id) {
-                console.log(`Updating item ${item.name} to price ${update.price}`);
-                const newPriceObj = { price: update.price, timestamp: update.timestamp };
+        console.log("⚡ Real-time packet:", update.name || update.commodity_id, update);
+        setItems(prevItems => {
+            const exists = prevItems.some(i => i.id === update.commodity_id);
+            const newPriceObj = { price: update.price, timestamp: update.timestamp };
 
-                // Update selected commodity if it's the one being updated
-                if (selectedCommodity?.id === item.id) {
-                    setSelectedCommodity((prev: any) => ({
+            // Update modal if open
+            if (selectedCommodity?.id === update.commodity_id) {
+                setSelectedCommodity((prev: any) => {
+                    if (!prev) return null;
+                    return {
                         ...prev,
                         latest_price: newPriceObj,
                         prices: [newPriceObj, ...(prev.prices || [])]
-                    }));
-                }
-
-                return {
-                    ...item,
-                    latest_price: newPriceObj,
-                    prices: [newPriceObj, ...(item.prices || [])]
-                };
+                    };
+                });
             }
-            return item;
-        }));
+
+            if (exists) {
+                return prevItems.map(item => {
+                    if (item.id === update.commodity_id) {
+                        return {
+                            ...item,
+                            latest_price: newPriceObj,
+                            prices: [newPriceObj, ...(item.prices || [])]
+                        };
+                    }
+                    return item;
+                });
+            } else {
+                // New Discovery logic
+                const filterMatch = activeCategory === "All" || activeCategory === update.category?.name;
+                const searchMatch = !searchTerm || (update.name && update.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+                console.log("🔍 New Item Match Test:", { name: update.name, filterMatch, searchMatch, currentCat: activeCategory });
+
+                if (filterMatch && searchMatch && update.name) {
+                    const newItem = {
+                        id: update.commodity_id,
+                        name: update.name,
+                        slug: update.slug,
+                        unit: update.unit,
+                        category: update.category,
+                        region: update.region,
+                        created_at: update.timestamp, // Use timestamp as creation for UI sorting
+                        latest_price: newPriceObj,
+                        prices: [newPriceObj],
+                        change: 0 // New items have no change yet
+                    };
+                    // Since it's a new item (likely latest), prepend it
+                    // Also reset hasMore to true to allow further scrolling if needed
+                    setHasMore(true);
+                    return [newItem, ...prevItems];
+                }
+                return prevItems;
+            }
+        });
     });
 
     // Fetch initial categories
@@ -71,11 +106,13 @@ export default function Home() {
     }, []);
 
     const fetchItems = useCallback(async (isFirstLoad = false) => {
-        if (loading) return;
+        if (loadingRef.current) return;
+        loadingRef.current = true;
         setLoading(true);
 
         try {
-            const currPage = isFirstLoad ? 1 : page;
+            // Use ref for cursor to keep function stable
+            const beforeTimestamp = isFirstLoad ? undefined : oldestTimestampRef.current;
 
             // Find the selected category slug
             const selectedCat = categories.find(c => c.name === activeCategory);
@@ -84,31 +121,47 @@ export default function Home() {
             const newData = await fetchCommodities({
                 category_slug: categorySlug,
                 search: searchTerm,
-                page: currPage,
+                before: beforeTimestamp,
                 size: 15
             });
 
-            setItems(prev => isFirstLoad ? (newData || []) : [...prev, ...(newData || [])]);
-            setPage(currPage + 1);
-            if (!newData || newData.length < 15) setHasMore(false);
+            if (isFirstLoad) {
+                setItems(newData || []);
+                setHasMore(newData && newData.length >= 15);
+                if (newData && newData.length > 0) {
+                    oldestTimestampRef.current = newData[newData.length - 1].created_at;
+                }
+            } else {
+                setItems(prev => [...prev, ...(newData || [])]);
+                if (!newData || newData.length < 15) setHasMore(false);
+                if (newData && newData.length > 0) {
+                    oldestTimestampRef.current = newData[newData.length - 1].created_at;
+                }
+            }
         } catch (error) {
             console.error(error);
         } finally {
+            loadingRef.current = false;
             setLoading(false);
         }
-    }, [page, activeCategory, searchTerm, loading, categories]);
+    }, [activeCategory, searchTerm, categories]); // items removed from dependencies
 
     useEffect(() => {
-        setItems([]); setPage(1); setHasMore(true); fetchItems(true);
+        setItems([]);
+        setHasMore(true);
+        oldestTimestampRef.current = undefined; // Reset cursor
+        fetchItems(true);
     }, [activeCategory, searchTerm]);
 
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && hasMore && !loading) fetchItems();
-        }, { threshold: 1.0 });
+            if (entries[0].isIntersecting && hasMore && !loadingRef.current) {
+                fetchItems();
+            }
+        }, { threshold: 0.1 });
         if (loader.current) observer.observe(loader.current);
         return () => observer.disconnect();
-    }, [fetchItems, hasMore, loading]);
+    }, [fetchItems, hasMore]);
 
     const toggleColumn = (col: keyof typeof visibleColumns) => {
         setVisibleColumns(prev => ({ ...prev, [col]: !prev[col] }));
@@ -166,34 +219,36 @@ export default function Home() {
                         ))}
                     </div>
 
-                    <div className="flex overflow-x-auto no-scrollbar items-center gap-4 pb-2 lg:pb-0">
-                        {/* Column Toggles */}
-                        <div className="flex shrink-0 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                            <span className="text-[10px] px-2 self-center font-bold text-slate-600 uppercase">Cột:</span>
-                            {Object.keys(visibleColumns).map((col) => (
-                                <button
-                                    key={col}
-                                    onClick={() => toggleColumn(col as any)}
-                                    className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap ${visibleColumns[col as keyof typeof visibleColumns] ? 'text-blue-400' : 'text-slate-700'}`}
-                                >
-                                    {col}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Currency Selector */}
-                        <div className="flex shrink-0 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                            <span className="text-[10px] px-2 self-center font-bold text-slate-600 uppercase">Quy đổi:</span>
-                            {availableCurrencies.filter(c => c !== 'VND').map(c => (
-                                <button key={c} onClick={() => setTargetCurrency(c)}
-                                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${targetCurrency === c ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>
-                                    {c}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
                 </div>
             </header>
+
+            {/* Table Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
+                {/* Currency Selector (Top Left) */}
+                <div className="flex shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                    <span className="text-[10px] px-2 self-center font-bold text-slate-500 uppercase tracking-tighter">Quy đổi:</span>
+                    {availableCurrencies.filter(c => c !== 'VND').map(c => (
+                        <button key={c} onClick={() => setTargetCurrency(c)}
+                            className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${targetCurrency === c ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:text-slate-300'}`}>
+                            {c}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Column Toggles (Top Right) */}
+                <div className="flex shrink-0 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                    <span className="text-[10px] px-2 self-center font-bold text-slate-500 uppercase tracking-tighter">Cột:</span>
+                    {Object.keys(visibleColumns).map((col) => (
+                        <button
+                            key={col}
+                            onClick={() => toggleColumn(col as any)}
+                            className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition-all whitespace-nowrap ${visibleColumns[col as keyof typeof visibleColumns] ? 'text-blue-400' : 'text-slate-700'}`}
+                        >
+                            {col}
+                        </button>
+                    ))}
+                </div>
+            </div>
 
             {/* Main Data Table */}
             <div className="overflow-x-auto rounded-3xl border border-slate-800 bg-slate-900/20 backdrop-blur-md">

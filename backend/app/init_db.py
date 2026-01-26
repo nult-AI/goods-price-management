@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from app.models.base import Base, User, UserRole, Region
+from app.models.base import Base, User, UserRole, Region, AutoCrawlerConfig
 from app.core.security import get_password_hash
 from app.core.config import settings
 
@@ -46,6 +46,20 @@ async def init_db():
             )
             session.add(vn_region)
             print("Default region 'VN' created")
+
+        # Add default crawler config
+        result = await session.execute(select(AutoCrawlerConfig).limit(1))
+        config = result.scalar_one_or_none()
+        if not config:
+            config = AutoCrawlerConfig(
+                id=uuid.uuid4(),
+                search_keywords=["giá lúa gạo hôm nay", "giá cà phê arabica robusta mới nhất", "giá sắt thép xây dựng hôm nay"],
+                seed_urls=[], # Empty as requested to trigger LLM Search fallback
+                scraping_interval_minutes=60,
+                is_active=True
+            )
+            session.add(config)
+            print("Default AutoCrawlerConfig created")
 
         await session.commit()
 

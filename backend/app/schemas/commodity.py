@@ -96,3 +96,19 @@ class Token(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+
+# --- Crawler ---
+class CrawlerConfigUpdate(BaseModel):
+    search_keywords: Optional[List[str]] = None
+    seed_urls: Optional[List[str]] = None
+    scraping_interval_minutes: Optional[float] = None
+    is_active: Optional[bool] = None
+
+class CrawlerConfig(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    search_keywords: List[str]
+    seed_urls: List[str]
+    scraping_interval_minutes: float
+    last_run_at: Optional[datetime] = None
+    is_active: bool

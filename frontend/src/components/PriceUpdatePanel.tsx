@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { dataEntryApi, fetchCommodities } from "@/lib/api";
+import { useState, useEffect, useRef } from "react";
+import { dataEntryApi, fetchCommodities, fetchCategories } from "@/lib/api";
 import { useRealtimePrices } from "@/hooks/useRealtimePrices";
 
 interface PriceUpdatePanelProps {
@@ -15,6 +15,11 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editPrice, setEditPrice] = useState<string>("");
     const [updating, setUpdating] = useState<string | null>(null);
+    const [categories, setCategories] = useState<any[]>([]);
+    const [selectedCategory, setSelectedCategory] = useState({ name: "All", slug: "All" });
+    const [hasMore, setHasMore] = useState(true);
+    const oldestTimestampRef = useRef<string | undefined>(undefined);
+    const loadingRef = useRef(false);
 
     // Real-time synchronization
     const { isConnected } = useRealtimePrices((update) => {
@@ -36,34 +41,62 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
     });
 
     useEffect(() => {
-        loadCommodities();
+        loadCategories();
     }, []);
 
-    const loadCommodities = async () => {
+    const loadCategories = async () => {
+        const cats = await fetchCategories();
+        setCategories(cats || []);
+    };
+
+    const loadCommodities = async (isFirstLoad = false) => {
+        if (loadingRef.current) return;
+        loadingRef.current = true;
         setLoading(true);
+
         try {
+            const beforeTimestamp = isFirstLoad ? undefined : oldestTimestampRef.current;
+            const categorySlug = selectedCategory.slug === "All" ? undefined : selectedCategory.slug;
+
             let data;
             if (user.role === 'admin') {
-                // Admin gets all commodities
-                data = await fetchCommodities({ search });
+                data = await fetchCommodities({
+                    search,
+                    category_slug: categorySlug,
+                    before: beforeTimestamp,
+                    size: 20
+                });
             } else {
-                // Data entry gets only permitted commodities
+                // Keep existing data entry sync for now, or update it if needed
                 data = await dataEntryApi.getMyCommodities(token, search);
             }
-            setCommodities(data || []);
+
+            if (isFirstLoad) {
+                setCommodities(data || []);
+                setHasMore(data && data.length >= 20);
+                if (data && data.length > 0) {
+                    oldestTimestampRef.current = data[data.length - 1].created_at;
+                }
+            } else {
+                setCommodities(prev => [...prev, ...(data || [])]);
+                if (!data || data.length < 20) setHasMore(false);
+                if (data && data.length > 0) {
+                    oldestTimestampRef.current = data[data.length - 1].created_at;
+                }
+            }
         } catch (err) {
             console.error(err);
         } finally {
+            loadingRef.current = false;
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            loadCommodities();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [search]);
+        oldestTimestampRef.current = undefined;
+        setHasMore(true);
+        loadCommodities(true);
+    }, [search, selectedCategory]);
 
     const startEdit = (commodityId: string, currentPrice: number) => {
         setEditingId(commodityId);
@@ -95,9 +128,11 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
         }
     };
 
-    const filtered = commodities.filter((c: any) =>
-        c.name.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = commodities.filter((c: any) => {
+        const searchMatch = c.name.toLowerCase().includes(search.toLowerCase());
+        const categoryMatch = selectedCategory.slug === "All" || c.category?.slug === selectedCategory.slug;
+        return searchMatch && categoryMatch;
+    });
 
     return (
         <div className="space-y-6">
@@ -121,17 +156,39 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
                             : `Đang quản lý ${filtered.length} mặt hàng được phân quyền`}
                     </p>
                 </div>
-                <div className="relative w-full md:w-80">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">🔍</span>
+            </div>
+
+            {/* Filter Row: Categories */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
+                <button
+                    onClick={() => setSelectedCategory({ name: "All", slug: "All" })}
+                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg ${selectedCategory.slug === "All" ? 'bg-blue-600 text-white shadow-blue-600/20' : 'bg-slate-900 text-slate-500 hover:text-slate-300'}`}
+                >
+                    Tất cả
+                </button>
+                {categories.map(cat => (
+                    <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategory({ name: cat.name, slug: cat.slug })}
+                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-lg ${selectedCategory.slug === cat.slug ? 'bg-blue-600 text-white shadow-blue-600/20' : 'bg-slate-900 text-slate-500 hover:text-slate-300'}`}
+                    >
+                        {cat.name}
+                    </button>
+                ))}
+            </div>
+
+            {/* Search Box Row: Aligned Right */}
+            <div className="flex justify-end">
+                <div className="relative w-full md:w-80 shrink-0">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
                     <input
-                        placeholder="Tìm kiếm hàng hóa..."
+                        placeholder="Tìm kiếm hàng hóa để cập nhật..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:border-blue-500 outline-none transition-all placeholder:text-slate-700"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-11 pr-4 py-2.5 text-xs focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 shadow-inner"
                     />
                 </div>
             </div>
-
             {/* Loading State */}
             {loading ? (
                 <div className="flex items-center justify-center py-20">

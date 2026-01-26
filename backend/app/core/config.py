@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     
     # Security
     SECRET_KEY: str
+    GOOGLE_API_KEY: Optional[str] = None
+    SERPER_API_KEY: Optional[str] = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    GEMINI_MODEL: str = "gemini-1.5-flash"
     
     # App Env
     model_config = SettingsConfigDict(

@@ -7,6 +7,7 @@ import AdminCommodities from "@/components/AdminCommodities";
 import AdminCategories from "@/components/AdminCategories";
 import AdminUsers from "@/components/AdminUsers";
 import AdminAssignments from "@/components/AdminAssignments";
+import AdminCrawler from "@/components/AdminCrawler";
 
 export default function Dashboard() {
     const { user, token } = useAuth();
@@ -77,6 +78,7 @@ export default function Dashboard() {
                         <TabButton id="categories" label="Danh mục" icon="📁" active={activeTab} onClick={setActiveTab} />
                         <TabButton id="users" label="Nhân sự" icon="👤" active={activeTab} onClick={setActiveTab} />
                         <TabButton id="assignments" label="Phân quyền" icon="🔐" active={activeTab} onClick={setActiveTab} />
+                        <TabButton id="crawler" label="Crawler" icon="🤖" active={activeTab} onClick={setActiveTab} />
                         <TabButton id="updates" label="Cập nhật giá" icon="⚡" active={activeTab} onClick={setActiveTab} />
                     </>
                 ) : (
@@ -96,6 +98,7 @@ export default function Dashboard() {
                             {activeTab === "categories" && <AdminCategories categories={categories} token={token!} refresh={loadData} />}
                             {activeTab === "users" && <AdminUsers users={users} token={token!} refresh={loadData} />}
                             {activeTab === "assignments" && <AdminAssignments users={users} categories={categories} token={token!} refresh={loadData} />}
+                            {activeTab === "crawler" && <AdminCrawler token={token!} />}
                             {activeTab === "updates" && <PriceUpdatePanel user={user} token={token!} />}
                         </>
                     ) : (
