@@ -28,7 +28,11 @@ export async function fetchCommodities(params: {
     const query = new URLSearchParams();
     if (params.category_slug) query.append('category_slug', params.category_slug);
     else if (params.category && params.category !== 'All') query.append('category_slug', params.category);
-    if (params.search) query.append('search', params.search);
+    if (params.search) {
+        // Normalize to NFC to ensure consistent Vietnamese character encoding
+        const cleanSearch = params.search.normalize('NFC').trim();
+        query.append('search', cleanSearch);
+    }
     if (params.before) query.append('before', params.before);
     if (params.size) query.append('size', params.size.toString());
 

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 print("Loading main.py...")
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from typing import List, Optional
 from datetime import datetime
 import uuid
@@ -371,7 +371,8 @@ async def list_commodities(
     if category_slug:
         query = query.join(Category).where(Category.slug == category_slug)
     if search:
-        query = query.where(Commodity.name.ilike(f"%{search}%"))
+        search_pattern = f"%{search.lower()}%"
+        query = query.where(func.lower(Commodity.name).like(search_pattern))
     
     if before:
         query = query.where(Commodity.created_at < before)
@@ -405,7 +406,8 @@ async def get_my_commodities(
     ).where(Commodity.category_id.in_(permitted_cat_ids))
     
     if search:
-        query = query.where(Commodity.name.ilike(f"%{search}%"))
+        search_pattern = f"%{search.lower()}%"
+        query = query.where(func.lower(Commodity.name).like(search_pattern))
     
     result = await db.execute(query)
     return result.scalars().all()

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { adminApi } from "@/lib/api";
+import { fuzzyMatch } from "@/lib/utils";
 
 interface AdminCommoditiesProps {
     commodities: any[];
@@ -19,8 +20,8 @@ export default function AdminCommodities({ commodities, categories, token, refre
     const [error, setError] = useState("");
 
     const filtered = commodities.filter((c: any) =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.category?.name?.toLowerCase().includes(search.toLowerCase())
+        fuzzyMatch(c.name, search) ||
+        (c.category && fuzzyMatch(c.category.name, search))
     );
 
     const toggleSelect = (id: string) => {

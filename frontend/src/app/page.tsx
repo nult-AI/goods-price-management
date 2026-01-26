@@ -5,6 +5,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchCategories, fetchCommodities } from "@/lib/api";
 import { useRealtimePrices } from "@/hooks/useRealtimePrices";
+import { fuzzyMatch } from "@/lib/utils";
 
 const REGIONS = ["Toàn cầu", "Miền Bắc", "Miền Trung", "Miền Nam", "Tây Nguyên"];
 
@@ -69,7 +70,7 @@ export default function Home() {
             } else {
                 // New Discovery logic
                 const filterMatch = activeCategory === "All" || activeCategory === update.category?.name;
-                const searchMatch = !searchTerm || (update.name && update.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                const searchMatch = !searchTerm || fuzzyMatch(update.name, searchTerm);
 
                 console.log("🔍 New Item Match Test:", { name: update.name, filterMatch, searchMatch, currentCat: activeCategory });
 
@@ -146,12 +147,21 @@ export default function Home() {
         }
     }, [activeCategory, searchTerm, categories]); // items removed from dependencies
 
+    // Debounce search term to avoid excessive API calls and handle IME states
+    const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
     useEffect(() => {
         setItems([]);
         setHasMore(true);
         oldestTimestampRef.current = undefined; // Reset cursor
         fetchItems(true);
-    }, [activeCategory, searchTerm]);
+    }, [activeCategory, debouncedSearch]);
 
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {

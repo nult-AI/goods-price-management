@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { dataEntryApi, fetchCommodities, fetchCategories } from "@/lib/api";
 import { useRealtimePrices } from "@/hooks/useRealtimePrices";
+import { fuzzyMatch } from "@/lib/utils";
 
 interface PriceUpdatePanelProps {
     user: any;
@@ -92,11 +93,20 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
         }
     };
 
+    // Debounce search input to handle Vietnamese IME states
+    const [debouncedSearch, setDebouncedSearch] = useState(search);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [search]);
+
     useEffect(() => {
         oldestTimestampRef.current = undefined;
         setHasMore(true);
         loadCommodities(true);
-    }, [search, selectedCategory]);
+    }, [debouncedSearch, selectedCategory]);
 
     const startEdit = (commodityId: string, currentPrice: number) => {
         setEditingId(commodityId);
@@ -129,7 +139,7 @@ export default function PriceUpdatePanel({ user, token }: PriceUpdatePanelProps)
     };
 
     const filtered = commodities.filter((c: any) => {
-        const searchMatch = c.name.toLowerCase().includes(search.toLowerCase());
+        const searchMatch = fuzzyMatch(c.name, search);
         const categoryMatch = selectedCategory.slug === "All" || c.category?.slug === selectedCategory.slug;
         return searchMatch && categoryMatch;
     });
