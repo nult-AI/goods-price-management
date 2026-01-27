@@ -1,12 +1,12 @@
 from datetime import datetime
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Numeric, Table, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Numeric, Table, Enum as SQLEnum, MetaData
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase
 import enum
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(schema="goods_db")
 
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
@@ -16,8 +16,9 @@ class UserRole(str, enum.Enum):
 user_category_permissions = Table(
     'user_category_permissions',
     Base.metadata,
-    Column('user_id', UUID(as_uuid=True), ForeignKey('users.id', ondelete="CASCADE")),
-    Column('category_id', UUID(as_uuid=True), ForeignKey('categories.id', ondelete="CASCADE"))
+    Column('user_id', UUID(as_uuid=True), ForeignKey('goods_db.users.id', ondelete="CASCADE")),
+    Column('category_id', UUID(as_uuid=True), ForeignKey('goods_db.categories.id', ondelete="CASCADE")),
+    schema="goods_db"
 )
 
 class User(Base):
@@ -58,7 +59,7 @@ class Commodity(Base):
     __tablename__ = "commodities"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id', ondelete="SET NULL"), nullable=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey('goods_db.categories.id', ondelete="SET NULL"), nullable=True)
     name = Column(String(100), nullable=False)
     slug = Column(String(100), unique=True, index=True, nullable=False)
     unit = Column(String(20), nullable=False)
@@ -104,8 +105,8 @@ class Price(Base):
     __tablename__ = "prices"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    commodity_id = Column(UUID(as_uuid=True), ForeignKey('commodities.id', ondelete="CASCADE"), nullable=False)
-    region_id = Column(UUID(as_uuid=True), ForeignKey('regions.id', ondelete="SET NULL"), nullable=True)
+    commodity_id = Column(UUID(as_uuid=True), ForeignKey('goods_db.commodities.id', ondelete="CASCADE"), nullable=False)
+    region_id = Column(UUID(as_uuid=True), ForeignKey('goods_db.regions.id', ondelete="SET NULL"), nullable=True)
     price = Column(Numeric(18, 4), nullable=False)
     source_url = Column(String(500), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)

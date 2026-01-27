@@ -1,13 +1,11 @@
+---
+title: Goods Price API
+emoji: 😻
+colorFrom: purple
+colorTo: yellow
+sdk: docker
+pinned: false
+short_description: demo deploy fast API
+---
 
-# chạy worker: 
- - uv run celery -A app.tasks.worker worker --loglevel=info -P solo
- - uv run celery -A app.tasks.worker worker --loglevel=info -P solo --concurrency=2
-
- - run auto for window: 
-   + Terminal 1: uv run celery -A app.tasks.worker worker --loglevel=info -P solo --concurrency=2
-   + Terminal 2: uv run celery -A app.tasks.worker beat --loglevel=info
-- run auto for linux:
-   + uv run celery -A app.tasks.worker worker --beat --loglevel=info -P solo
-
-
-   
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference

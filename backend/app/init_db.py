@@ -13,8 +13,11 @@ async def init_db():
     )
 
     async with engine.begin() as conn:
+        # Create schema 'goods_db' if it doesn't exist
+        from sqlalchemy import text
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS goods_db"))
+        
         # Recreate tables for fresh start if needed, or just create
-        # await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session() as session:
