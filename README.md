@@ -43,3 +43,13 @@ docker-compose up --build
 - **ISR**: Public pages remain fast even under high traffic because they are served as static files.
 - **Async Backend**: FastAPI handles concurrent I/O efficiently.
 - **Redis Cache**: Prevents the database from becoming a bottleneck during read spikes.
+
+
+## Deployment:
+- Frontend: Vercel
+- Backend: Hungging face
+- Database: supabase
+
+
+
+

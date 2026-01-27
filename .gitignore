@@ -6,3 +6,4 @@
 /backend/test_redis_pubsub.py
 /backend/test_ws_client.py
 /backend/.env
+/.env
