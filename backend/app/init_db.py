@@ -7,7 +7,21 @@ from app.core.security import get_password_hash
 from app.core.config import settings
 
 async def init_db():
-    engine = create_async_engine(settings.DATABASE_URL, echo=True)
+    # Handle SSL for Supabase/asyncpg
+    connect_args = {}
+    db_url = settings.DATABASE_URL
+    if "sslmode=" in db_url:
+        import re
+        db_url = re.sub(r'([?&])sslmode=[^&]*', r'\1', db_url).replace('?&', '?').rstrip('?').rstrip('&')
+        connect_args["ssl"] = True
+
+    from sqlalchemy.pool import NullPool
+    engine = create_async_engine(
+        db_url, 
+        echo=True, 
+        connect_args=connect_args,
+        poolclass=NullPool
+    )
     async_session = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )
