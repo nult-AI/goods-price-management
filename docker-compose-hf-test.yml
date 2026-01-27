@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  # --- API Backend (Simulating Hugging Face Space) ---
+  # This container runs FastAPI, Redis, and Celery inside via Supervisor
+  api-hf:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: goods_api_hf
+    restart: always
+    env_file: .env
+    environment:
+      # Use the internal docker-compose DB service
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # IMPORTANT: Inside this container, Redis is on localhost
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      SERPER_API_KEY: ${SERPER_API_KEY}
+    ports:
+      - "7860:7860"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - hf-test-network
+
+  # --- Frontend (Next.js) ---
+  frontend-hf:
+    build:
+      context: ./frontend
+      args:
+        # Point to the local HF-test port
+        NEXT_PUBLIC_API_URL: http://localhost:7860
+    container_name: goods_frontend_hf
+    restart: always
+    env_file: .env
+    ports:
+      - "3007:3000"
+    depends_on:
+      - api-hf
+    networks:
+      - hf-test-network
+
+  # --- Database (Simulating Supabase/External DB) ---
+  db:
+    image: postgres:15-alpine
+    container_name: goods_db_hf
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hf-test-network
+
+networks:
+  hf-test-network:
+    name: goods_hf_test_network
+    driver: bridge

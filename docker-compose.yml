@@ -8,7 +8,9 @@ version: "3.9"
 services:
   # --- API Backend (FastAPI) ---
   api:
-    build: ./backend
+    build: 
+      context: ./backend        # Thư mục chứa code
+      dockerfile: Dockerfile.local
     container_name: goods_api
     restart: always
     env_file: .env

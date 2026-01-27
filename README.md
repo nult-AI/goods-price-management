@@ -45,9 +45,19 @@ docker-compose up --build
 - **Redis Cache**: Prevents the database from becoming a bottleneck during read spikes.
 
 
+## Test huggingface config at the local:
+- Run: docker-compose -f docker-compose-hf-test.yml up -d --build
+- 
+
 ## Deployment:
 - Frontend: Vercel
 - Backend: Hungging face
+  + Đứng tại thư mục gốc dự án (nơi chứa folder backend)
+    ```bash
+    hf upload <space-id> <local-path> <path-in-repo>
+    hf upload nult2003/goods-price-api ./backend . --repo-type=space
+    ```
+
 - Database: supabase
 
 
