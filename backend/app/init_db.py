@@ -20,7 +20,7 @@ async def init_db():
         db_url, 
         echo=True, 
         connect_args=connect_args,
-        poolclass=NullPool
+        poolclass=NullPool if settings.USE_SUPABASE_POOLER else None
     )
     async_session = sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False

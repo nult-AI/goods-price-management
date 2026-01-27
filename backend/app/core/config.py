@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str
+    USE_SUPABASE_POOLER: bool = False
     
     # Redis
     REDIS_URL: str

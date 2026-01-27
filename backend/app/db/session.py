@@ -14,15 +14,13 @@ if "sslmode=" in db_url:
     # Using ssl=True is standard for asyncpg to require SSL
     connect_args["ssl"] = True
 
-# Use NullPool when connecting to Supabase Pooler (often on port 54322 or with 'supabase' in host)
+# Use NullPool when connecting to Supabase Pooler to avoid double-pooling.
 # Standard Postgres should use the default QueuePool for performance.
-is_supabase = "supabase" in db_url or "54322" in db_url or "6543" in db_url
-
 engine = create_async_engine(
     db_url, 
     echo=False,
     connect_args=connect_args,
-    poolclass=NullPool if is_supabase else None
+    poolclass=NullPool if settings.USE_SUPABASE_POOLER else None
 )
 
 AsyncSessionLocal = async_sessionmaker(
