@@ -12,8 +12,14 @@ async def init_db():
     db_url = settings.DATABASE_URL
     if "sslmode=" in db_url:
         import re
+        import ssl
         db_url = re.sub(r'([?&])sslmode=[^&]*', r'\1', db_url).replace('?&', '?').rstrip('?').rstrip('&')
-        connect_args["ssl"] = True
+        
+        # Create an SSL context that skips verification
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ctx
 
     from sqlalchemy.pool import NullPool
     engine = create_async_engine(

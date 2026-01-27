@@ -10,9 +10,14 @@ db_url = settings.DATABASE_URL
 if "sslmode=" in db_url:
     # Strip sslmode from URL to prevent asyncpg error
     import re
+    import ssl
     db_url = re.sub(r'([?&])sslmode=[^&]*', r'\1', db_url).replace('?&', '?').rstrip('?').rstrip('&')
-    # Using ssl=True is standard for asyncpg to require SSL
-    connect_args["ssl"] = True
+    
+    # Create an SSL context that skips verification
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    connect_args["ssl"] = ctx
 
 # Use NullPool when connecting to Supabase Pooler to avoid double-pooling.
 # Standard Postgres should use the default QueuePool for performance.
