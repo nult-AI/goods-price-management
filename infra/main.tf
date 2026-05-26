@@ -69,15 +69,6 @@ resource "azurerm_container_app" "redis" {
     max_replicas = 1
   }
 
-  ingress {
-    external_enabled = false # CHỈ CHO GỌI NỘI BỘ
-    target_port      = 6379
-    transport        = "tcp" # Chạy giao thức TCP cho Redis
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
 }
 
 # ==============================================================================
@@ -143,14 +134,6 @@ resource "azurerm_container_app" "api" {
     external_enabled = true # MỞ RA NGOÀI ĐỂ FRONTEND VÀ USER GỌI
     target_port      = 7860 # cùng port expose trên docker file, dùng chung port của hugging face
     
-    # CẤU HÌNH CORS TRÊN AZURE TẠI ĐÂY:
-    cors_policy {
-      allowed_origins   = ["https://goods-price-management.vercel.app", "http://localhost:3000"]
-      allowed_methods   = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-      allowed_headers   = ["*"]
-      allow_credentials = true
-    }
-
     traffic_weight {
       percentage      = 100
       latest_revision = true

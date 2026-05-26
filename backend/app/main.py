@@ -508,7 +508,7 @@ async def update_price(
 # Health check
 @app.get("/health")
 async def health():
-    return {"status": "ok. chao mung den voi GPM API!"}
+    return {"status": "ok. Welcom to the GPM API!"}
 
 @app.websocket("/ws/prices")
 async def websocket_endpoint(websocket: WebSocket):
