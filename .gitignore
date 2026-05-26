@@ -7,3 +7,7 @@
 /backend/test_ws_client.py
 /backend/.env
 /.env
+/infra/.terraform
+/infra/terraform.tfstate.backup
+/infra/.terraform.lock.hcl
+/infra/terraform.tfstate

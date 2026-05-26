@@ -44,22 +44,40 @@ docker-compose up --build
 - **Async Backend**: FastAPI handles concurrent I/O efficiently.
 - **Redis Cache**: Prevents the database from becoming a bottleneck during read spikes.
 
+# chạy worker: 
+ - uv run celery -A app.tasks.worker worker --loglevel=info -P solo
+ - uv run celery -A app.tasks.worker worker --loglevel=info -P solo --concurrency=2
+
+ - run auto for window: 
+   + Terminal 1: uv run celery -A app.tasks.worker worker --loglevel=info -P solo --concurrency=2
+   + Terminal 2: uv run celery -A app.tasks.worker beat --loglevel=info
+- run auto for linux:
+   + uv run celery -A app.tasks.worker worker --beat --loglevel=info -P solo
+
 
 ## Test huggingface config at the local:
 - Run: docker-compose -f docker-compose-hf-test.yml up -d --build
-- 
+- Backend: work với  Dockerfile
 
 ## Deployment:
 - Frontend: Vercel
 - Backend: Hungging face
   + Đứng tại thư mục gốc dự án (nơi chứa folder backend)
-    ```bash
-    hf upload <space-id> <local-path> <path-in-repo>
-    hf upload nult2003/goods-price-api ./backend . --repo-type=space
-    ```
+    # B1: Tách lịch sử backend ra một nhánh tạm tên là 'deploy'
+    git subtree split --prefix backend -b deploy
+
+    # B2: Đẩy nhánh 'deploy' này lên 'main' của HF
+    # cần thêm hf remote vào setting của git
+    git remote add hf https://huggingface.co/spaces/nult2003/goods-price-api
+    git push hf deploy:main --force
+
+    # B3: Xóa nhánh tạm sau khi xong (không ảnh hưởng đến code gốc)
+    git branch -D deploy
+
 
 - Database: supabase
-
+ + Cần chạy ở mode pooler for hugging face
+ + 
 
 
 
