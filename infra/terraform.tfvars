@@ -11,3 +11,6 @@ redis_url                       = "redis://ca-goods-redis:6379/0"
 api_image                       = "acrgoodsmanagementtest.azurecr.io/goods-backend:v1" # official image
 google_api_key                  = "AIzaSyD59d6jODi2fyaa0VQrp3NS0QAD8ixAwjo"
 serper_api_key                  = "85e236b7678a8e3c76644aad5e929c49f5f4f108"
+secret_key                      = "nult-secret-key"
+access_token_expire_minutes     = "11520"
+

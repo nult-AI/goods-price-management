@@ -69,6 +69,15 @@ resource "azurerm_container_app" "redis" {
     max_replicas = 1
   }
 
+  ingress {
+    external_enabled = false # CHỈ CHO GỌI NỘI BỘ
+    target_port      = 6379
+    transport        = "tcp" # Chạy giao thức TCP cho Redis
+    traffic_weight {
+      percentage      = 100
+      latest_revision = true
+    }
+  }
 }
 
 # ==============================================================================
@@ -101,13 +110,18 @@ resource "azurerm_container_app" "api" {
     name  = "serper-api-key"
     value = var.serper_api_key
   }
+  secret {
+    name  = "secret-key"
+    value = var.secret_key
+  }
 
   template {
     container {
-      name   = "goods-api"
-      image  = var.api_image
-      cpu    = "0.25"
-      memory = "0.5Gi"
+      name    = "goods-api"
+      image   = var.api_image
+      cpu     = "0.25"
+      memory  = "0.5Gi"
+      command = ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
 
       env {
         name  = "DATABASE_URL"
@@ -124,6 +138,14 @@ resource "azurerm_container_app" "api" {
       env {
         name        = "SERPER_API_KEY"
         secret_name = "serper-api-key"
+      }
+      env {
+        name        = "SECRET_KEY"
+        secret_name = "secret-key"
+      }
+      env {
+        name  = "ACCESS_TOKEN_EXPIRE_MINUTES"
+        value = var.access_token_expire_minutes
       }
     }
     min_replicas = 0 # Không có request tự động tắt về 0 để tiết kiệm tiền

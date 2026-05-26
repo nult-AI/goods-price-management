@@ -69,3 +69,15 @@ variable "serper_api_key" {
   description = "Serper API Key for search functionality."
   sensitive   = true
 }
+
+variable "secret_key" {
+  type        = string
+  description = "Secret key for FastAPI application security."
+  sensitive   = true
+}
+
+variable "access_token_expire_minutes" {
+  type        = string
+  description = "Token expiration duration in minutes."
+  default     = "11520"
+}

@@ -97,7 +97,10 @@ async def redis_listener():
         print(f"Redis listener error: {e}")
     finally:
         print("Redis listener shutting down...")
-        await pubsub.unsubscribe("price_updates")
+        try:
+            await pubsub.unsubscribe("price_updates")
+        except Exception as e:
+            print(f"Ignore error unsubscribing Redis channel on shutdown: {e}")
 
 app = FastAPI(title="Commodity Price Tracker API", lifespan=lifespan)
 
