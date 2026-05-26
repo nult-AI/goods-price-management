@@ -15,5 +15,5 @@
 - chạy lệnh bên đưới để lấy azure credentials, sau đó dán vào secret của github repository
   - Name: AZURE_CREDENTIALS
   - Value: output của lệnh bên dưới
-az ad sp create-for-rbac --name "github-actions-rsa" --role contributor --scopes /subscriptions/33ec68a6-22a4-4ae4-84da-fa8a82cc7694/resourceGroups/rg-nult-cashier-test --sdk-auth
+az ad sp create-for-rbac --name "github-actions-rsa" --role contributor --scopes /subscriptions/33ec68a6-22a4-4ae4-84da-fa8a82cc7694/resourceGroups/rg-goods-management-test --sdk-auth
 
