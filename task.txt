@@ -1,0 +1,9 @@
+Hãy đọc kỹ file backend/app/main.py và viết bộ unit test toàn diện bằng pytest và httpx (hoặc TestClient của FastAPI) cho toàn bộ các API endpoint có trong file này:
+
+1. Tạo mới (hoặc cập nhật) file tests/test_main.py.
+2. Bao phủ đầy đủ các trường hợp:
+   - Success cases (mã 200/201): Kiểm tra dữ liệu trả về và cấu trúc schema chuẩn (bao gồm route /ping và /health nếu có).
+   - Validation & Bad Request cases (mã 422/400): Dữ liệu gửi lên sai định dạng, thiếu trường bắt buộc.
+   - Authentication / Authorization cases (mã 401/403): Gọi API khi không có token hoặc token không hợp lệ (nếu endpoint có dependency auth).
+   - Mock các service bên ngoài (database, Redis, background tasks/worker) để test độc lập, không phụ thuộc vào kết nối mạng hay DB thật.
+3. Sử dụng pytest fixture chuẩn, đặt tên hàm test rõ ràng theo mẫu: test_<endpoint>_<scenario>_<expected_result>.
