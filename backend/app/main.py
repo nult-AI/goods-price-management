@@ -513,6 +513,10 @@ async def update_price(
 async def health():
     return {"status": "ok. Welcom to the GPM API!"}
 
+@app.get("/ping")
+async def ping():
+    return {"message": "pong"}
+
 @app.websocket("/ws/prices")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
