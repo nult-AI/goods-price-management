@@ -1,0 +1,12 @@
+services:
+  agent-canvas:
+    image: ghcr.io/openhands/agent-canvas:latest
+    container_name: openhands-canvas
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Thư mục lưu cấu hình, token và API key của OpenHands
+      - E:/personal/goods_price_management/.openhands:/home/openhands/.openhands
+      # Gắn trực tiếp thư mục dự án của bạn vào thư mục /projects trong container
+      - E:/personal/goods_price_management:/projects/goods_price_management

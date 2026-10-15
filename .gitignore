@@ -12,3 +12,4 @@
 /infra/.terraform.lock.hcl
 /infra/terraform.tfstate
 .aider*
+/.openhands

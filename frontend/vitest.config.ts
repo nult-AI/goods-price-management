@@ -5,10 +5,10 @@ import path from 'path';
 export default defineConfig({
     plugins: [react()],
     test: {
-        environment: 'jsdom',
+        environment: 'node',
         globals: true,
-        setupFiles: ['./src/__tests__/setup.ts'],
         css: false,
+        fileParallelism: false,
     },
     resolve: {
         alias: {

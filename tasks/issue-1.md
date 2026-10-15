@@ -27,13 +27,13 @@ Hãy tạo unit test cho các component / trang sau:
 2. `frontend/src/pages/...` (ví dụ: Trang danh sách giá, Trang chi tiết)
 
 ### Các kịch bản cần bao phủ (Scenarios)
-- [ ] **Render thành công:** Component hiển thị đúng dữ liệu mặc định khi truyền props hợp lệ.
-- [ ] **Tương tác người dùng (User Events):** Test sự kiện click button, nhập input, submit form với dữ liệu hợp lệ và không hợp lệ.
-- [ ] **Xử lý trạng thái API (Mocking):**
+- [x] **Render thành công:** Component hiển thị đúng dữ liệu mặc định khi truyền props hợp lệ.
+- [x] **Tương tác người dùng (User Events):** Test sự kiện click button, nhập input, submit form với dữ liệu hợp lệ và không hợp lệ.
+- [x] **Xử lý trạng thái API (Mocking):**
   - Trạng thái đang tải (Loading spinner / skeleton).
   - Trạng thái thành công: Mock API trả về danh sách giá và hiển thị đúng vào bảng.
   - Trạng thái lỗi (400, 500): Hiển thị thông báo lỗi hoặc alert phù hợp.
-- [ ] **Validation:** Báo lỗi khi để trống trường bắt buộc hoặc nhập số âm.
+- [x] **Validation:** Báo lỗi khi để trống trường bắt buộc hoặc nhập số âm.
 
 ### Yêu cầu kỹ thuật
 - Mock toàn bộ các lệnh gọi API (không gọi trực tiếp tới backend thật).

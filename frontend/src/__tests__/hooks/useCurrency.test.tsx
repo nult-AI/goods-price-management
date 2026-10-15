@@ -1,8 +1,27 @@
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { Window } from 'happy-dom';
 import { useCurrency } from '@/hooks/useCurrency';
 
 describe('useCurrency Hook', () => {
+    let window: Window;
+    beforeEach(() => {
+        window = new Window();
+        global.window = window as any;
+        global.document = window.document;
+        global.navigator = window.navigator;
+        global.HTMLElement = window.HTMLElement as any;
+        global.Event = window.Event as any;
+        global.CustomEvent = window.CustomEvent as any;
+        global.MouseEvent = window.MouseEvent as any;
+    });
+
+    afterEach(() => {
+        delete (global as any).window;
+        delete (global as any).document;
+        delete (global as any).navigator;
+    });
+
     it('initializes with default VND currency and available currencies list', () => {
         const { result } = renderHook(() => useCurrency());
 
