@@ -5,6 +5,12 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    environment:
+      - AGENT_SERVER_API_KEY=<get from .\openhands\agent-canvas\api-key.txt>
+      - LITELLM_NUM_RETRIES=5
+      - LITELLM_RETRY_DELAY=16
+      # Thêm GitHub Token tại đây
+      - GITHUB_TOKEN=<github token here>
     volumes:
       # Thư mục lưu cấu hình, token và API key của OpenHands
       - E:/personal/goods_price_management/.openhands:/home/openhands/.openhands
