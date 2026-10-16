@@ -13,3 +13,7 @@
 /infra/terraform.tfstate
 .aider*
 /.openhands
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
